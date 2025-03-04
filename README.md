@@ -30,18 +30,22 @@ MCQ-solution-finder 是一个 Python 程序，旨在帮助用户根据他们的�
 
 ## Usage Instructions (中文)
 
+
 1. 克隆仓库：
    ```
    git clone https://github.com/YinChingZ/MCQ-solution-finder.git
    cd MCQ-solution-finder
    ```
 
+
 2. 确保您已安装 Python（版本 3.6 或更高）。
 
-3. 运行主脚本：
+
+4. 运行主脚本：
    ```
    python main.py
    ```
+
 
 4. 按照屏幕上的说明与程序交互：
    - 输入问题数量。
@@ -63,6 +67,7 @@ The program supports different option counts per question. However, if the input
 The program does not have any external dependencies. It uses standard Python libraries.
 
 ### Troubleshooting Steps
+
 
 - If you encounter any issues while running the program, ensure that you have the correct version of Python installed.
 - Check for any error messages displayed by the program and follow the instructions provided.
