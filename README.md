@@ -99,9 +99,28 @@ The program does not have any external dependencies. It uses standard Python lib
 
 The `main.py` file contains the main logic of the program. It includes functions to convert option letters to integers and vice versa, display the program header, get user input, and interact with the `MCQSolver` class to add solution attempts, find possible solutions, and get optimal solutions to check next.
 
+#### Functions
+
+- `option_to_int(option_char)`: Converts an option letter (A, B, C, D) to an integer (1, 2, 3, 4).
+- `int_to_option(option_int, max_options=None)`: Converts an integer (1, 2, 3, 4) to an option letter (A, B, C, D) or a number if the integer is greater than 26.
+- `main()`: The main function that displays the program header, gets user input, initializes the `MCQSolver`, and provides a menu for the user to interact with the program.
+
 ### mcq_solver.py
 
 The `mcq_solver.py` file contains the `MCQSolver` class, which is responsible for managing the solution attempts and scores, finding consistent solutions, and suggesting optimal solutions to check next. The class includes methods to add solution attempts, check solution consistency, and find optimal suggestions using both exhaustive and heuristic approaches.
+
+#### MCQSolver Class
+
+- `__init__(self, num_questions: int, options_per_question: List[int] = None)`: Initializes the MCQ solver with the number of questions and options per question.
+- `add_solution_with_score(self, solution: List[int], score: int)`: Adds a solution attempt and its corresponding score.
+- `get_solution(self)`: Finds all possible solutions consistent with the provided scores and returns a dictionary containing the unique solution (if one exists), possible answers for each question, the number of consistent solutions, a suggested solution to check next, and the maximum number of solutions that could be eliminated.
+- `_is_solution_consistent(self, solution: List[int]) -> bool`: Checks if a solution is consistent with all recorded solution-score pairs.
+- `_is_partial_solution_consistent(self, partial_solution: List[int], index: int) -> bool`: Checks if a partial solution can potentially be consistent using early pruning to avoid exploring impossible branches.
+- `_find_optimal_suggestion(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: Finds a solution to check that would maximize the elimination of other solutions using either exhaustive search or a heuristic approach.
+- `_find_optimal_suggestion_exhaustive(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: Uses exhaustive search to find the optimal suggestion for small solution sets.
+- `_find_optimal_suggestion_heuristic(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: Uses an information theory-based heuristic for larger solution sets.
+- `get_uncertain_questions(self, possible_answers: List[Set[int]]) -> List[int]`: Returns the indices of questions with multiple possible answers.
+- `get_elimination_efficiency(self, score_distribution: Dict[int, int], total_solutions: int) -> Dict[int, float]`: Calculates the elimination efficiency for each possible score.
 
 ## 代码解释 (中文)
 
@@ -109,6 +128,25 @@ The `mcq_solver.py` file contains the `MCQSolver` class, which is responsible fo
 
 `main.py` 文件包含程序的主要逻辑。它包括将选项字母转换为整数及其反向转换的函数，显示程序头部，获取用户输入，并与 `MCQSolver` 类交互以添加解答尝试、查找可能的解答以及获取下一个要检查的最佳解答。
 
+#### 函数
+
+- `option_to_int(option_char)`: 将选项字母（A、B、C、D）转换为整数（1、2、3、4）。
+- `int_to_option(option_int, max_options=None)`: 将整数（1、2、3、4）转换为选项字母（A、B、C、D）或如果整数大于 26 则转换为数字。
+- `main()`: 主函数，显示程序头部，获取用户输入，初始化 `MCQSolver`，并提供菜单供用户与程序交互。
+
 ### mcq_solver.py
 
 `mcq_solver.py` 文件包含 `MCQSolver` 类，该类负责管理解答尝试和得分，查找一致的解答，并建议下一个要检查的最佳解答。该类包括添加解答尝试、检查解答一致性以及使用穷举和启发式方法查找最佳建议的方法。
+
+#### MCQSolver 类
+
+- `__init__(self, num_questions: int, options_per_question: List[int] = None)`: 初始化 MCQ 解答器，包含问题数量和每个问题的选项数量。
+- `add_solution_with_score(self, solution: List[int], score: int)`: 添加解答尝试及其对应的得分。
+- `get_solution(self)`: 查找与提供的得分一致的所有可能解答，并返回包含唯一解答（如果存在）、每个问题的可能答案、一致解答的数量、下一个要检查的建议解答以及可以消除的最大解答数量的字典。
+- `_is_solution_consistent(self, solution: List[int]) -> bool`: 检查解答是否与所有记录的解答-得分对一致。
+- `_is_partial_solution_consistent(self, partial_solution: List[int], index: int) -> bool`: 使用早期修剪检查部分解答是否可能一致，以避免探索不可能的分支。
+- `_find_optimal_suggestion(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: 查找一个解答，以最大化消除其他解答，使用穷举搜索或启发式方法。
+- `_find_optimal_suggestion_exhaustive(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: 使用穷举搜索查找小解答集的最佳建议。
+- `_find_optimal_suggestion_heuristic(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]`: 使用基于信息理论的启发式方法查找较大解答集的最佳建议。
+- `get_uncertain_questions(self, possible_answers: List[Set[int]]) -> List[int]`: 返回具有多个可能答案的问题索引。
+- `get_elimination_efficiency(self, score_distribution: Dict[int, int], total_solutions: int) -> Dict[int, float]`: 计算每个可能得分的消除效率。
