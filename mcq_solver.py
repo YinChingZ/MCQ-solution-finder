@@ -1,4 +1,4 @@
-from typing import List, Set, Tuple, Dict, Optional
+from typing import List, Set, Tuple, Dict, Optional, Any
 import random
 from collections import defaultdict
 import time
@@ -31,15 +31,17 @@ class MCQSolver:
         """Add a solution attempt and its corresponding score."""
         self.solutions_with_scores.append((solution, score))
         
-    def get_solution(self) -> Tuple[Optional[List[int]], List[Set[int]], int]:
+    def get_solution(self):
         """
         Find all possible solutions consistent with provided scores.
         
         Returns:
-            Tuple containing:
-            - Unique solution if one exists, or suggested solution to check next, or None
-            - List of sets of possible answers for each question
-            - Number of consistent solutions found
+            Dictionary containing:
+            - unique_solution: Unique solution if one exists, otherwise None
+            - possible_answers: List of sets of possible answers for each question
+            - num_consistent: Number of consistent solutions found
+            - suggested_solution: Suggested solution to check next (if applicable)
+            - max_elimination: Maximum number of solutions that could be eliminated
         """
         start_time = time.time()
         consistent_solutions = []
@@ -72,17 +74,32 @@ class MCQSolver:
             for q, a in enumerate(sol):
                 possible_answers[q].add(a)
         
+        # Find optimal suggestion if more than one solution exists
+        suggested_solution = None
+        max_elimination = 0
+        score_distribution = None
+        
+        if len(consistent_solutions) > 1:
+            suggestion_result = self._find_optimal_suggestion(consistent_solutions)
+            suggested_solution = suggestion_result['suggestion']
+            max_elimination = suggestion_result['max_elimination']
+            score_distribution = suggestion_result['score_distribution']
+        
         # Determine what to return based on number of solutions
         if len(consistent_solutions) == 1:
             # Unique solution found
-            return consistent_solutions[0], possible_answers, 1
-        elif len(consistent_solutions) <= 10:
-            # Small set of possible solutions
-            return None, possible_answers, len(consistent_solutions)
+            unique_solution = consistent_solutions[0]
         else:
-            # Too many solutions, suggest one to check next
-            suggested = self._suggest_solution_to_check(consistent_solutions)
-            return suggested, possible_answers, len(consistent_solutions)
+            unique_solution = None
+            
+        return {
+            'unique_solution': unique_solution,
+            'possible_answers': possible_answers,
+            'num_consistent': len(consistent_solutions),
+            'suggested_solution': suggested_solution,
+            'max_elimination': max_elimination,
+            'score_distribution': score_distribution
+        }
     
     def _is_solution_consistent(self, solution: List[int]) -> bool:
         """Check if a solution is consistent with all recorded solution-score pairs."""
@@ -112,12 +129,59 @@ class MCQSolver:
         
         return True
     
-    def _suggest_solution_to_check(self, consistent_solutions: List[List[int]]) -> List[int]:
+    def _find_optimal_suggestion(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]:
         """
-        Suggest a solution to check that would narrow down possibilities the most.
-        Uses information theory principles to maximize information gain.
+        Find a solution to check that would maximize elimination of other solutions.
+        
+        Returns dictionary containing:
+            - suggestion: The suggested solution to check
+            - max_elimination: Maximum number of solutions that could be eliminated
+            - score_distribution: Distribution of scores for the suggested solution
         """
-        suggested = []
+        # For small solution sets, use exhaustive search
+        if len(consistent_solutions) <= 100:
+            return self._find_optimal_suggestion_exhaustive(consistent_solutions)
+        else:
+            # For larger sets, use heuristic approach
+            return self._find_optimal_suggestion_heuristic(consistent_solutions)
+    
+    def _find_optimal_suggestion_exhaustive(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]:
+        """Use exhaustive search to find optimal suggestion for small solution sets."""
+        total_solutions = len(consistent_solutions)
+        best_suggestion = None
+        max_elimination = -1
+        best_score_distribution = None
+        
+        # Try each solution as a potential suggestion
+        for candidate in consistent_solutions:
+            # Score distribution if this candidate is tested
+            score_distribution = defaultdict(int)
+            
+            # Evaluate how many solutions would be eliminated with this candidate
+            for test_solution in consistent_solutions:
+                score = sum(a == b for a, b in zip(candidate, test_solution))
+                score_distribution[score] += 1
+            
+            # Calculate maximum elimination potential
+            max_bucket = max(score_distribution.values())
+            elimination_potential = total_solutions - max_bucket
+            
+            if elimination_potential > max_elimination:
+                max_elimination = elimination_potential
+                best_suggestion = candidate
+                best_score_distribution = dict(score_distribution)
+        
+        return {
+            'suggestion': best_suggestion,
+            'max_elimination': max_elimination, 
+            'score_distribution': best_score_distribution
+        }
+    
+    def _find_optimal_suggestion_heuristic(self, consistent_solutions: List[List[int]]) -> Dict[str, Any]:
+        """Use information theory-based heuristic for larger solution sets."""
+        suggestion = []
+        
+        # For each question, choose the option that appears closest to 50% of the time
         for q in range(self.num_questions):
             # Count frequency of each option
             option_counts = defaultdict(int)
@@ -127,17 +191,34 @@ class MCQSolver:
             # Choose option closest to half of total solutions (maximizes information gain)
             target = len(consistent_solutions) / 2
             best_option = min(option_counts.keys(), key=lambda opt: abs(option_counts[opt] - target))
-            suggested.append(best_option)
+            suggestion.append(best_option)
         
-        return suggested
-
-    def print_possible_answers(self, possible_answers: List[Set[int]]):
-        """Print the possible answers for each question in a readable format."""
-        for i, options in enumerate(possible_answers):
-            options_list = sorted(list(options))
-            options_str = ', '.join([str(opt) for opt in options_list])
-            print(f"Q{i+1}: {options_str}")
-            
+        # Calculate score distribution for this suggestion
+        score_distribution = defaultdict(int)
+        for sol in consistent_solutions:
+            score = sum(a == b for a, b in zip(suggestion, sol))
+            score_distribution[score] += 1
+        
+        # Calculate elimination potential
+        max_bucket = max(score_distribution.values())
+        elimination_potential = len(consistent_solutions) - max_bucket
+        
+        return {
+            'suggestion': suggestion,
+            'max_elimination': elimination_potential,
+            'score_distribution': dict(score_distribution)
+        }
+    
     def get_uncertain_questions(self, possible_answers: List[Set[int]]) -> List[int]:
         """Return indices of questions with multiple possible answers."""
         return [i for i, options in enumerate(possible_answers) if len(options) > 1]
+    
+    def get_elimination_efficiency(self, score_distribution: Dict[int, int], total_solutions: int) -> Dict[int, float]:
+        """Calculate elimination efficiency for each possible score."""
+        elimination_efficiency = {}
+        
+        for score, count in score_distribution.items():
+            efficiency = 100.0 * (total_solutions - count) / total_solutions
+            elimination_efficiency[score] = efficiency
+        
+        return elimination_efficiency
