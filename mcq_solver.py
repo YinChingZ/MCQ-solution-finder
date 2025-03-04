@@ -1,143 +1,98 @@
-from typing import List, Set, Tuple, Dict, Optional
-import random
-from collections import defaultdict
-import time
+"""
+Module: mcq_solver.py
+
+This module implements the MCQSolver class that tracks and reduces the set of possible solutions
+for a Multiple Choice Question (MCQ) based on user attempts and provided scores.
+
+Features:
+- Initializes all possible solution combinations based on the number of questions and available options.
+- Filters the solution space when a solution attempt with a score is provided.
+- Provides methods to retrieve a unique solution (if determined), the possible answers per question, and the number of consistent solutions.
+- Determines which questions remain uncertain.
+"""
+
+import itertools
 
 class MCQSolver:
-    def __init__(self, num_questions: int, options_per_question: List[int] = None):
+    def __init__(self, num_questions, options_per_question):
         """
-        Initialize the MCQ solver.
+        Initialize the solver with the given number of questions and options per question.
         
         Args:
-            num_questions: Number of questions in the quiz
-            options_per_question: List containing number of options for each question
-                                 (if single int, all questions have same number of options)
+            num_questions (int): number of questions.
+            options_per_question (int or list): if int, each question has that many options (numbered 1 to that number). 
+                                                  If list, each element represents the number of options for that question.
         """
         self.num_questions = num_questions
+        self.options_per_question = options_per_question
         
-        # If options_per_question is not provided or is an int, convert to list
-        if options_per_question is None:
-            # Default to 4 options (A, B, C, D) for all questions
-            self.options_per_question = [4] * num_questions
-        elif isinstance(options_per_question, int):
-            self.options_per_question = [options_per_question] * num_questions
+        # Generate all possible solution combinations.
+        if isinstance(options_per_question, int):
+            # All questions have the same number of options.
+            choices = [list(range(1, options_per_question + 1))] * num_questions
+        elif isinstance(options_per_question, list):
+            # Each question may have a different number of options.
+            if len(options_per_question) != num_questions:
+                raise ValueError("Length of options_per_question list must equal num_questions.")
+            choices = [list(range(1, count + 1)) for count in options_per_question]
         else:
-            self.options_per_question = options_per_question
-            
-        self.solutions_with_scores = []
-        self.max_solutions_to_store = 1000  # Limit for performance
-        
-    def add_solution_with_score(self, solution: List[int], score: int):
-        """Add a solution attempt and its corresponding score."""
-        self.solutions_with_scores.append((solution, score))
-        
-    def get_solution(self) -> Tuple[Optional[List[int]], List[Set[int]], int]:
+            raise ValueError("options_per_question must be an integer or a list of integers.")
+
+        # Cartesian product of choices for all questions.
+        self.possible_solutions = list(itertools.product(*choices))
+    
+    def add_solution_with_score(self, solution, score):
         """
-        Find all possible solutions consistent with provided scores.
+        Add a solution attempt with its score, and filter the possible solutions accordingly.
+        
+        Args:
+            solution (list): a list representing a solution attempt.
+            score (int): the number of answers that match the correct solution.
+        """
+        def matches(s):
+            # Compute the number of matching answers between s and the attempted solution.
+            return sum(1 for a, b in zip(s, solution) if a == b) == score
+        
+        self.possible_solutions = [s for s in self.possible_solutions if matches(s)]
+    
+    def get_solution(self):
+        """
+        Get the current solution status.
         
         Returns:
-            Tuple containing:
-            - Unique solution if one exists, or suggested solution to check next, or None
-            - List of sets of possible answers for each question
-            - Number of consistent solutions found
+            tuple: (unique_solution, possible_answers, num_consistent)
+            - unique_solution: the unique solution if only one possibility remains, otherwise None.
+            - possible_answers: a list of sets with possible options for each question.
+            - num_consistent: count of remaining possible solutions.
         """
-        start_time = time.time()
-        consistent_solutions = []
+        num_consistent = len(self.possible_solutions)
         
-        def backtrack(partial_solution, index):
-            # Stop exploring if we've found too many solutions (for performance)
-            if len(consistent_solutions) >= self.max_solutions_to_store:
-                return
-            
-            # If we've assigned all questions, check if the solution is consistent
-            if index == self.num_questions:
-                if self._is_solution_consistent(partial_solution):
-                    consistent_solutions.append(partial_solution[:])
-                return
-            
-            # Try each option for the current question
-            for opt in range(1, self.options_per_question[index] + 1):
-                partial_solution[index] = opt
-                
-                # Early pruning: check if partial solution is still viable
-                if self._is_partial_solution_consistent(partial_solution, index):
-                    backtrack(partial_solution, index + 1)
+        unique_solution = None
+        if num_consistent == 1:
+            unique_solution = self.possible_solutions[0]
         
-        # Start backtracking
-        backtrack([0] * self.num_questions, 0)
+        # Build a list containing sets of possible options for each question.
+        possible_answers = []
+        for i in range(self.num_questions):
+            options = set(solution[i] for solution in self.possible_solutions)
+            possible_answers.append(options)
         
-        # Extract possible answers for each question
-        possible_answers = [set() for _ in range(self.num_questions)]
-        for sol in consistent_solutions:
-            for q, a in enumerate(sol):
-                possible_answers[q].add(a)
-        
-        # Determine what to return based on number of solutions
-        if len(consistent_solutions) == 1:
-            # Unique solution found
-            return consistent_solutions[0], possible_answers, 1
-        elif len(consistent_solutions) <= 10:
-            # Small set of possible solutions
-            return None, possible_answers, len(consistent_solutions)
-        else:
-            # Too many solutions, suggest one to check next
-            suggested = self._suggest_solution_to_check(consistent_solutions)
-            return suggested, possible_answers, len(consistent_solutions)
+        return unique_solution, possible_answers, num_consistent
     
-    def _is_solution_consistent(self, solution: List[int]) -> bool:
-        """Check if a solution is consistent with all recorded solution-score pairs."""
-        for test_sol, score in self.solutions_with_scores:
-            matches = sum(a == b for a, b in zip(solution, test_sol))
-            if matches != score:
-                return False
-        return True
-    
-    def _is_partial_solution_consistent(self, partial_solution: List[int], index: int) -> bool:
+    def get_uncertain_questions(self, possible_answers):
         """
-        Check if a partial solution can potentially be consistent.
-        Uses early pruning to avoid exploring impossible branches.
-        """
-        for test_sol, score in self.solutions_with_scores:
-            # Count matches up to the current index
-            matches_so_far = sum(a == b for a, b in zip(partial_solution[:index+1], test_sol[:index+1]))
-            
-            # If matches already exceed score, inconsistent
-            if matches_so_far > score:
-                return False
-            
-            # If remaining questions aren't enough to reach score, inconsistent
-            remaining_questions = self.num_questions - (index + 1)
-            if matches_so_far + remaining_questions < score:
-                return False
+        Returns the indices of questions that have more than one possible answer.
         
-        return True
+        Args:
+            possible_answers (list of sets): list containing a set of possible answers for each question.
+            
+        Returns:
+            list: indices (0-indexed) of questions with uncertainty.
+        """
+        return [i for i, opts in enumerate(possible_answers) if len(opts) > 1]
     
-    def _suggest_solution_to_check(self, consistent_solutions: List[List[int]]) -> List[int]:
+    def get_all_possible_solutions(self):
         """
-        Suggest a solution to check that would narrow down possibilities the most.
-        Uses information theory principles to maximize information gain.
+        Returns the current list of all possible solutions.
         """
-        suggested = []
-        for q in range(self.num_questions):
-            # Count frequency of each option
-            option_counts = defaultdict(int)
-            for sol in consistent_solutions:
-                option_counts[sol[q]] += 1
-            
-            # Choose option closest to half of total solutions (maximizes information gain)
-            target = len(consistent_solutions) / 2
-            best_option = min(option_counts.keys(), key=lambda opt: abs(option_counts[opt] - target))
-            suggested.append(best_option)
-        
-        return suggested
-
-    def print_possible_answers(self, possible_answers: List[Set[int]]):
-        """Print the possible answers for each question in a readable format."""
-        for i, options in enumerate(possible_answers):
-            options_list = sorted(list(options))
-            options_str = ', '.join([str(opt) for opt in options_list])
-            print(f"Q{i+1}: {options_str}")
-            
-    def get_uncertain_questions(self, possible_answers: List[Set[int]]) -> List[int]:
-        """Return indices of questions with multiple possible answers."""
-        return [i for i, options in enumerate(possible_answers) if len(options) > 1]
+        return [list(s) for s in self.possible_solutions]

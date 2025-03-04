@@ -2,16 +2,14 @@
 Module: recommendation.py
 
 This module provides a function to recommend an optimal solution set (guess) that, if tested,
-is expected to eliminate the most possible solutions based on the provided scoring system.
+is expected to eliminate the most possible solutions based on the feedback (score).
 
 The algorithm works as follows:
-1. For a given guess (candidate solution set), simulate its feedback (score) against every possible solution.
+1. For a given candidate guess, simulate its feedback (score) against every possible solution.
 2. Group the possible solutions by the score (number of matching answers).
-3. The worst-case scenario for the guess is the largest group size (i.e. the maximum number of solutions remaining).
-4. The number of solutions that would be eliminated in the worst-case is the total number of possibilities minus this maximum group size.
-5. The recommended guess is the one with the maximum elimination (i.e. the smallest worst-case remaining count).
-
-Note: In many puzzles, the candidate set used to choose the optimal guess is simply the list of all remaining possible solutions.
+3. The worst-case scenario for the candidate is the largest group size (i.e. the maximum number of solutions remaining).
+4. The elimination count is defined as the total number of possibilities minus this maximum group size.
+5. The recommended guess is the candidate with the maximum elimination (i.e. the smallest worst-case remaining count).
 """
 
 def compute_score(guess, solution):
@@ -24,7 +22,7 @@ def compute_score(guess, solution):
 
 def get_recommended_solution(possible_solutions, candidate_set=None):
     """
-    Recommends an optimal solution set (guess) from the candidate_set based on the elimination criterion.
+    Recommends an optimal candidate solution set (guess) from the candidate_set based on the elimination criterion.
     
     Args:
         possible_solutions (list of list): A list of possible solution sets. Each solution set is assumed to be a list.
@@ -48,7 +46,6 @@ def get_recommended_solution(possible_solutions, candidate_set=None):
             score = compute_score(candidate, sol)
             partition[score] = partition.get(score, 0) + 1
 
-        # Worst case: the number of possible solutions that would remain after receiving a score.
         worst_case_remaining = max(partition.values())
         elimination = total - worst_case_remaining
         if elimination > max_elimination:
@@ -59,7 +56,6 @@ def get_recommended_solution(possible_solutions, candidate_set=None):
 
 if __name__ == "__main__":
     # Example usage:
-    # Assume each solution is represented as a list of answers (for example, letters or numbers).
     possible = [
         ['A', 'B', 'C', 'D'],
         ['A', 'B', 'D', 'C'],
